@@ -1,44 +1,44 @@
-name: Build OpenWrt (LEDE)
+name: Build ImmortalWrt
 
 on:
-  # 仅手动触发，防止误触发。等我们配完 .config 再改成 push 触发
-  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - '.config'
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - name: Install build dependencies
+      - name: Install dependencies
         run: |
-          sudo apt update
-          sudo apt install -y build-essential clang flex bison g++ gawk gcc-multilib \
-            gettext git libncurses5-dev libssl-dev python3-distutils rsync unzip zlib1g-dev file wget python3
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang flex bison g++ gawk \
+            gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev \
+            python3-distutils rsync unzip zlib1g-dev file wget
 
-      - name: Clone LEDE source
+      - name: Clone source
         run: |
-          git clone https://github.com/coolsnowwolf/lede
-          cd lede
+          git clone --depth 1 https://github.com/immortalwrt/immortalwrt.git
+          cd immortalwrt
           ./scripts/feeds update -a
           ./scripts/feeds install -a
-          # 如果仓库里已有 .config 就复制进去；若没有也不报错（我们稍后会添加）
-          if [ -f ../.config ]; then cp ../.config ./.config; fi
+          git clone --depth 1 https://github.com/kenzok8/openwrt-packages.git package/kenzok8
+          git clone --depth 1 https://github.com/kenzok8/small.git package/small
+          cp ../.config .config
 
-      - name: Compile firmware
+      - name: Build firmware
         run: |
-          cd lede
+          cd immortalwrt
           make defconfig
-          # 并行编译，失败则降级为单线程输出详细日志
           make -j$(nproc) || make -j1 V=s
 
-      - name: Upload firmware artifacts
-        if: success()
-        uses: actions/upload-artifact@v4
+      - name: Upload firmware
+        uses: actions/upload-artifact@v3
         with:
-          name: OpenWrt-firmware
-          path: lede/bin/targets/
+          name: immortalwrt-x86_64
+          path: immortalwrt/bin/targets/x86/64/
